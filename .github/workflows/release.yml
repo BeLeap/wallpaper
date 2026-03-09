@@ -1,0 +1,50 @@
+name: Build Wallpaper and Release
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    env:
+      HEADVER_HEAD: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Build wallpaper package
+        run: nix build .#wallpaper --print-build-logs
+
+      - name: Compute headver
+        run: |
+          yearweek="$(date -u +'%g%V')"
+          headver="${HEADVER_HEAD}.${yearweek}.${GITHUB_RUN_NUMBER}"
+          tag="v${headver}"
+
+          echo "HEADVER=${headver}" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=${tag}" >> "$GITHUB_ENV"
+
+      - name: Collect release artifacts
+        run: |
+          mkdir -p dist
+          cp result/share/wallpapers/wallpaper-frappe.png "dist/wallpaper-frappe-${HEADVER}.png"
+          cp result/share/wallpapers/wallpaper-frappe.svg "dist/wallpaper-frappe-${HEADVER}.svg"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Wallpaper ${{ env.HEADVER }}
+          generate_release_notes: true
+          files: |
+            dist/*.png
+            dist/*.svg
